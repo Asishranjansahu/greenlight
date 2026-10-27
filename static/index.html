@@ -55,6 +55,7 @@ function show(ev){
   switch(ev.type){
     case"start":add("",`<b>Found ${ev.files.length} Python files</b>${esc(ev.files.join(", "))}`);break;
     case"test_result":
+      stats.rounds=Math.max(stats.rounds,ev.round||0);
       lamp.className="lamp "+(ev.passed?"green":"red");
       add(ev.passed?"pass":"fail",`<b>Round ${ev.round}: tests ${ev.passed?"pass":"fail"}</b><details><summary>pytest output</summary><pre>${esc(ev.output)}</pre></details>`);break;
     case"model_reply":case"model_call":{

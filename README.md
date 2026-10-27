@@ -35,11 +35,13 @@ flowchart TD
 - **Planner** (`PLANNER_MODEL`): a large Nemotron model does the first diagnosis, where reasoning matters most.
 - **Fixer** (`FIXER_MODEL`): a smaller Nemotron model handles the quick retries in later rounds, with the history of previous attempts in the prompt.
 - The model must reply with a single JSON object (`diagnosis` + full new file contents). Malformed or truncated replies are retried once and logged with the first 200 characters of the raw reply.
-- **TODO: add the exact model IDs you used and what you observed (JSON compliance, retries, quality).**
+- **Models used:** planner `nvidia/Nemotron-3-Ultra-550b-a55b`; fixer `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`.
+- **Observed on the included repos:** both runs returned valid JSON on the first planner call; no fixer retry was needed. Each passed after the patch on test round 2.
 
 ## How Token Factory helped
 All model calls go through Token Factory's OpenAI-compatible API (`llm.py`), so the code is a plain `openai` client with a base URL and key.
-- **TODO: add real latency per call (planner vs fixer), tokens and credits per full run, from `python cli.py sample_repo --verbose`.**
+- **Observed web runs (2026-10-28):** `sample_repo` planner 3.0 s, 992 prompt / 1,012 completion tokens; UI total 3.6 s. `sample_repo_2` planner 3.9 s, 1,129 prompt / 1,203 completion tokens; UI total 4.8 s. No fixer call was needed. A separate CLI run of `sample_repo` took 18.307 s for the planner (992 prompt / 1,132 completion tokens); call latency varies between runs.
+- **Credits/cost per full run:** **TODO: confirm actual billed credits in Token Factory.**
 
 ## Other Nebius services used
 - **TODO:** e.g. Nebius Serverless Endpoints for hosting the demo (see [DEPLOY.md](DEPLOY.md)). List only what you actually used.
