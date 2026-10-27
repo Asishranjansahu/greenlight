@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Greenlight</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#e9edf0;--panel:#fff;--ink:#16202a;--mute:#5d6b78;--line:#cfd7de;--red:#d6372f;--green:#1c9a52;--amber:#c98a00;--blue:#2c5fd1;--code:#0f1a24;--codeink:#d9e4ee}
+@media (prefers-color-scheme:dark){:root{--bg:#10171d;--panel:#18222b;--ink:#e6edf3;--mute:#92a1ae;--line:#2b3946;--code:#0a1117}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:860px;margin:0 auto;padding:40px 20px 80px}
+header{display:flex;gap:20px;align-items:center;margin-bottom:28px}
+.lamp{flex:none;width:64px;height:64px;border-radius:18px;background:#0f1a24;display:flex;flex-direction:column;justify-content:space-between;align-items:center;padding:8px}
+.lamp i{width:14px;height:14px;border-radius:50%;background:#33414d}
+.lamp.red i:nth-child(1){background:var(--red);box-shadow:0 0 12px var(--red)}
+.lamp.amber i:nth-child(2){background:#f2b01e;box-shadow:0 0 12px #f2b01e}
+.lamp.green i:nth-child(3){background:#2fd16f;box-shadow:0 0 14px #2fd16f}
+h1{font:800 44px/1 "Bricolage Grotesque",system-ui,sans-serif;margin:0 0 6px;letter-spacing:-.02em}
+header p{margin:0;color:var(--mute)}
+button{font:600 16px system-ui;background:var(--ink);color:var(--bg);border:0;border-radius:10px;padding:12px 22px;cursor:pointer}
+button:disabled{opacity:.5;cursor:wait}
+button:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+#bar{display:flex;gap:16px;align-items:center;margin-bottom:24px;flex-wrap:wrap}
+#status{color:var(--mute)}
+select{font:600 16px system-ui;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:11px 12px}
+li.sum{border-color:var(--ink)}
+ol{list-style:none;margin:0;padding:0}
+li{background:var(--panel);border-left:6px solid var(--line);border-radius:6px;padding:12px 16px;margin-bottom:10px}
+li.fail{border-color:var(--red)} li.pass{border-color:var(--green)} li.model{border-color:var(--blue)} li.warn{border-color:var(--amber)}
+li b{display:block}
+.tag{display:inline-block;font-size:13px;font-weight:600;padding:1px 8px;border-radius:99px;background:var(--bg);margin-left:6px}
+pre{margin:8px 0 0;padding:12px;background:var(--code);color:var(--codeink);border-radius:8px;overflow-x:auto;font:13px/1.45 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap}
+details summary{cursor:pointer;color:var(--mute);margin-top:6px}
+.add{color:#5be08e}.del{color:#ff8a82}
+h2{font:600 22px "Bricolage Grotesque",system-ui;margin:28px 0 8px}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div class="lamp" id="lamp" aria-hidden="true"><i></i><i></i><i></i></div>
+  <div><h1>Greenlight</h1><p>Fixes failing tests with NVIDIA Nemotron on Nebius Token Factory.</p></div>
+</header>
+<div id="bar"><label for="repo" hidden>Sample repo</label><select id="repo"></select><button id="go">Fix the sample repo</button><span id="status" role="status">Ready. The sample repo has failing tests.</span></div>
+<ol id="log"></ol>
+<section id="result" hidden><h2>What changed</h2><pre id="diff"></pre></section>
+<script>
+const $=id=>document.getElementById(id), log=$("log"), lamp=$("lamp");
+const esc=s=>String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+function add(cls,html){const li=document.createElement("li");li.className=cls;li.innerHTML=html;log.appendChild(li);li.scrollIntoView({block:"nearest"})}
+function show(ev){
+  switch(ev.type){
+    case"start":add("",`<b>Found ${ev.files.length} Python files</b>${esc(ev.files.join(", "))}`);break;
+    case"test_result":
+      lamp.className="lamp "+(ev.passed?"green":"red");
+      add(ev.passed?"pass":"fail",`<b>Round ${ev.round}: tests ${ev.passed?"pass":"fail"}</b><details><summary>pytest output</summary><pre>${esc(ev.output)}</pre></details>`);break;
+    case"model_reply":case"model_call":{
+      lamp.className="lamp amber";
+      const ms=ev.ms!=null?ev.ms:ev.latency_ms;
+      if(ms==null&&ev.type==="model_call")break;
+      const u=ev.usage||null,pt=u?(u.prompt!=null?u.prompt:u.prompt_tokens):null,ct=u?(u.completion!=null?u.completion:u.completion_tokens):null;
+      stats.calls++;stats.ms+=ms||0;stats.models.add(ev.model);stats.rounds=Math.max(stats.rounds,ev.round||0);
+      const secs=ms!=null?(ms/1000).toFixed(1)+" s":"time n/a";
+      const toks=u&&pt!=null&&ct!=null?`${pt.toLocaleString()} in / ${ct.toLocaleString()} out tokens`:"tokens n/a";
+      add("model",`<b>${esc(ev.model)}<span class="tag">${esc(ev.role)}</span></b>${secs} &middot; ${toks}`);break;}
+    case"diagnosis":add("model",`<b>Diagnosis</b>${esc(ev.text)}`);break;
+    case"patch":add("model",`<b>Patch applied</b>${ev.files.length?esc(ev.files.join(", ")):"No files changed"}`);break;
+    case"warning":add("warn",`<b>Warning</b>${esc(ev.message)}`);break;
+    case"error":add("fail",`<b>Error</b>${esc(ev.message)}`);break;
+    case"done":{
+      const wall=((Date.now()-t0)/1000).toFixed(1);
+      add("sum",`<b>Summary</b>${stats.rounds} round${stats.rounds===1?"":"s"} &middot; ${wall} s total &middot; models: ${stats.models.size?esc([...stats.models].join(", ")):"none"}`);
+      $("status").textContent=ev.status==="passed"?"All tests pass.":ev.status==="error"?"Stopped on an error. Check the log.":"Gave up after the round limit.";
+      if(ev.status!=="passed")lamp.className="lamp red";
+      if(ev.diff){$("result").hidden=false;$("diff").innerHTML=esc(ev.diff).split("\n").map(l=>l.startsWith("+")&&!l.startsWith("+++")?`<span class="add">${l}</span>`:l.startsWith("-")&&!l.startsWith("---")?`<span class="del">${l}</span>`:l).join("\n")}
+      $("go").disabled=false;break;}
+  }
+}
+let stats,t0;
+fetch("/repos").then(r=>r.json()).then(d=>{
+  $("repo").innerHTML=d.repos.map(r=>`<option value="${esc(r)}"${r===d.default?" selected":""}>${esc(r)}</option>`).join("");
+}).catch(()=>{$("repo").innerHTML='<option value="sample_repo">sample_repo</option>'});
+function fail(title,msg){add("fail",`<b>${title}</b>${esc(msg)}`);$("go").disabled=false;lamp.className="lamp red";$("status").textContent=title+"."}
+$("go").onclick=async()=>{
+  log.innerHTML="";$("result").hidden=true;$("go").disabled=true;lamp.className="lamp red";$("status").textContent="Working...";
+  stats={calls:0,ms:0,rounds:0,models:new Set()};t0=Date.now();
+  let finished=false;
+  try{
+    const res=await fetch("/run?repo="+encodeURIComponent($("repo").value));
+    if(!res.ok){
+      let msg="Request failed ("+res.status+").";
+      try{msg=(await res.json()).message||msg}catch(e){}
+      return fail(res.status===429?"Demo limit reached":"Request rejected",msg);
+    }
+    const reader=res.body.getReader(),dec=new TextDecoder();let buf="";
+    for(;;){
+      const {value,done}=await reader.read();
+      if(done)break;
+      buf+=dec.decode(value,{stream:true});
+      let k;
+      while((k=buf.indexOf("\n\n"))>=0){
+        const chunk=buf.slice(0,k);buf=buf.slice(k+2);
+        if(chunk.startsWith("data: ")){const ev=JSON.parse(chunk.slice(6));show(ev);if(ev.type==="done")finished=true}
+      }
+    }
+    if(!finished)fail("Connection lost","Reload the page and try again.");
+  }catch(e){fail("Connection lost","Reload the page and try again.")}
+};
+</script>
+</main>
+</body>
+</html>

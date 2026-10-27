@@ -1,0 +1,11 @@
+services:
+  greenlight:
+    build: .
+    image: greenlight:local
+    ports:
+      - "8000:8000"
+    env_file: .env # TOKEN_FACTORY_BASE_URL, TOKEN_FACTORY_API_KEY, PLANNER_MODEL, FIXER_MODEL
+    environment:
+      MAX_RUNS_PER_DAY: "100"
+      MAX_TOKENS: "4096"
+    restart: unless-stopped

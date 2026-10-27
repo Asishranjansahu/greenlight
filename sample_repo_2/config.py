@@ -1,0 +1,2 @@
+SEPARATOR = "_"
+ELLIPSIS = "..."
